@@ -1,0 +1,271 @@
+---
+title: "Predicting Exercises With Fitness Device Data"
+author: "Michael Sieviec"
+date: "9/11/2019"
+output:
+  html_document:
+      toc: true
+---
+
+```{r setup, echo=F,warning=F,message=F}
+library(caret)
+library(kableExtra)
+library(ggplot2)
+library(mice)
+library(nnet)
+library(pROC)
+library(randomForest)
+library(reshape2)
+library(tidyverse)
+set.seed(555)
+knitr::opts_chunk$set(echo = TRUE,fig.pos = 'H')
+```
+
+## 1. Overview
+
+The purpose of this report is to detail some prediction models and their efficacy for discerning movements based on data made available by Groupware@LES (http://groupware.les.inf.puc-rio.br/har). The activities are sitting, sitting, down, standing, standing up, and walking.  Data was divided into training and test sets, then some exploration was performed with respect to determining which predictors to use. Finally, three models were assembled and then combined for a final prediction model.
+
+## 2. Gathering, Cleaning, and Assembling the Data
+
+```{r load,cache=TRUE}
+download.file(url="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",
+              method="curl",destfile="training.csv")
+training <- read.csv("training.csv", na.strings = c("", "NA")) %>% as_tibble()
+dim(training)
+```
+
+We see the data contains 19622 rows and 160 variables.
+
+```{r clean1}
+# Proportion of NA Values
+sum(is.na(training))/(dim(training)[1]*dim(training)[2])
+```
+
+More than 61% of the data was found to be missing, which is enough to have a large effect on the models.
+
+```{r mice, cache = TRUE}
+missing <- md.pattern(training, plot = FALSE)
+missing[,ncol(missing)]
+```
+
+Only 406 rows are missing no variables, but 19216 rows--nearly 98%--are missing 100 variables. Inspecting the `md.pattern` output reveals that these missing values are limited to 100 variables exactly--that is, they're conveniently not dispersed throughout all of the data. So, we will simply drop the variables from the data as imputing those values would be problematic.
+
+```{r}
+dropVars <- names(training)[which(missing == 19216, arr.ind = T)[,'col']]
+dropVars <- which(missing == 0, arr.ind = T) %>% 
+  as_tibble() %>% 
+  filter(row == 2)
+dropVars <- colnames(missing[,dropVars$col])
+training <- training %>% select(-dropVars)
+```
+
+Next, the first seven variables are removed from the data as they are not fitness device measurements, and we will rename the `classe` variable.
+
+```{r clean2}
+training <- training %>% 
+  select(-c(1:7)) %>% 
+  rename(class = classe)
+training %>% head() %>% 
+  kable(booktabs = TRUE, caption = 'Table 1: Sample of Training Data') %>% 
+  kable_styling() %>%
+  scroll_box(width = '100%')
+```
+
+Much better.
+
+```{r}
+training %>% group_by(class) %>% 
+  summarise(n()/nrow(training)) %>%
+  kable(booktabs = T, caption = 'Table 2: Proportion of Observations for Each Activity',
+        col.names = c('Class', 'Proportion'), width = '50%') %>%
+  kable_styling(full_width = F) %>%
+  column_spec(2, width = '14em')
+```
+
+We see the proportions are not too disparate, so we will use an ROC curve as one benchmark for performance.
+
+## 3. Prediction Modeling
+
+The data are partitioned into a 70% training and a 30% testing set.
+
+```{r partition}
+forTraining <- createDataPartition(training$class,p=0.7,list=FALSE)
+testing <- training[-forTraining,]
+training <- training[forTraining,]
+```
+
+We're going to compare a random forest model with a bagged tree model. The main difference between these two methods is that a random forest builds its decision trees on some subset of the variables, whereas a bagged trees model builds its using all of the variables, as illustrated in this image:
+![image](https://i.stack.imgur.com/sYR7y.png "Random Forest vs. Bagged Trees methodology")
+
+We will grow 50 trees for each method. By default, the trees will only be `sqrt(ncol(data))` deep, in order to avoid overfitting.
+
+```{r models, cache = TRUE}
+model.rf <- randomForest(class ~ ., data = training, ntree = 50)
+model.bag <- randomForest(class ~ ., data = training,
+                         ntree = 50, mtry = ncol(training %>% select(-class)))
+```
+
+Predictions are then generated.
+
+```{r predictions}
+predict.rf <- predict(model.rf, testing %>% select(-class))
+predict.bag <- predict(model.bag, testing %>% select(-class))
+```
+
+### Model Accuracy
+
+#### Training Set
+
+```{r}
+model.rf %>% capture.output() %>% 
+  .[c(6,8)] %>% 
+  str_trim() %>% 
+  paste('Random forest: ',.) %>%
+  noquote()
+model.bag %>% capture.output() %>%
+  .[c(6,8)] %>% 
+  str_trim() %>% 
+  paste('Bagged trees: ',.) %>%
+  noquote()
+```
+
+We see that using only 7 variables at each split, the random forest model achieved an estimated OOB error rate of 0.7%, compared with the bagged trees error rate of 1.23%. This discrepancy is likely due to overfitting with bagged trees, however both are excellent models.
+
+#### Testing Set
+
+```{r}
+conf.rf <- confusionMatrix(predict.rf, testing$class)
+conf.bag <- confusionMatrix(predict.bag, testing$class)
+paste('Random forest accuracy:',conf.rf$overall[1] %>% round(.,3)) %>% noquote()
+paste('Bagged trees accuracy:',conf.bag$overall[1] %>% round(.,3)) %>% noquote()
+```
+
+```{r auc.testing, fig.keep = 'none'}
+roc.rf <- multiclass.roc(as.numeric(testing$class), as.numeric(predict.rf))
+roc.bag <- multiclass.roc(as.numeric(testing$class), as.numeric(predict.bag))
+plot.rf <- plot.roc(roc.rf$response, roc.rf$predictor)
+plot.bag <- plot.roc(roc.bag$response, roc.bag$predictor)
+```
+
+```{r, fig.align = 'center'}
+ggroc(list(plot.rf, plot.bag)) +
+  ggtitle('Figure 1: ROC Curves for Models on Testing Set') +
+  scale_color_discrete(name = 'Model',
+                     labels = c('Random Forest', 'Bagged Trees')) +
+  annotate('text', x = 0.25, y = 0.15,
+           label = paste('Bagged Trees AUC:',roc.bag$auc %>% str_sub(., start = 0, end = 5))) +
+  annotate('text', x = 0.25, y = 0.1,
+           label = paste('Random Forest AUC:',roc.rf$auc %>% str_sub(., start = 0, end = 5)))
+
+```
+
+We see that they each perform similarly well on the test set, with the AUCs being expectedly excellent.
+
+### Heatmaps
+
+Below are heatmaps of each prediction models' respective confusion matrix against the training and testing data.
+
+```{r heatmaps1, fig.align = 'center'}
+melted.rf <- melt(model.rf$confusion[,1:5]/colSums(model.rf$confusion[,1:5]))
+plot.rf <- ggplot(data.frame(melted.rf),
+                  aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile() + 
+  scale_fill_gradient(low = "steelblue",high = "white", limits = c(0,1)) + 
+  ggtitle("Figure 2: Heatmap for Random Forest Accuracy on Training Data") + 
+  geom_text(aes(label=round(value,3))) +
+  theme(axis.title = element_blank())
+plot.rf
+
+melted.bag <- melt(model.bag$confusion[,1:5]/colSums(model.bag$confusion[,1:5]))
+plot.bag <- ggplot(data.frame(melted.bag),
+                    aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile() + 
+  scale_fill_gradient(low = "steelblue",high = "white", limits = c(0,1)) +
+  ggtitle("Figure 3: Heatmap for Bagged Trees Accuracy on Training Data") + 
+  geom_text(aes(label=round(value,3))) +
+  theme(axis.title = element_blank())
+plot.bag
+```
+
+```{r heatmaps2, fig.align = 'center'}
+melted.rf <- melt(conf.rf$table/colSums(conf.rf$table))
+plot.rf <- ggplot(data.frame(melted.rf),
+                  aes(x=Prediction, y=Reference, fill=value)) + 
+  geom_tile() + 
+  scale_fill_gradient(low = "steelblue",high = "white", limits = c(0,1)) + 
+  ggtitle("Figure 4: Heatmap for Random Forest Accuracy on Testing Data") + 
+  geom_text(aes(label=round(value,3))) +
+  theme(axis.title = element_blank())
+plot.rf
+
+melted.bag <- melt(conf.bag$table/colSums(conf.bag$table))
+plot.bag <- ggplot(data.frame(melted.bag),
+                    aes(x=Prediction, y=Reference, fill=value)) + 
+  geom_tile() + 
+  scale_fill_gradient(low = "steelblue",high = "white", limits = c(0,1)) +
+  ggtitle("Figure 5: Heatmap for Bagged Trees Accuracy on Testing Data") + 
+  geom_text(aes(label=round(value,3))) +
+  theme(axis.title = element_blank())
+plot.bag
+```
+
+## Ensembling
+
+As an exercise, we will build a meta-model out of the two we have. We will use multinomial logistic regression to do so.
+
+```{r ensemble}
+meta.training <- bind_cols(class = training$class, RF = model.rf$predicted, Bagged = model.bag$predicted)
+meta.testing <- bind_cols(class = testing$class, RF = predict.rf, Bagged = predict.bag)
+multi <- multinom(class ~ ., data = meta.training)
+multi.pred <- predict(multi, meta.testing)
+conf.multi <- confusionMatrix(multi.pred, testing$class)
+paste('Meta model accuracy:',conf.multi$overall[1] %>% round(.,3)) %>% noquote()
+```
+
+We see the meta model accuracy is slightly worse than random forest on its own, suggesting the bagged trees model brings the overall performance down.
+
+```{r auc.meta, fig.keep = 'none'}
+roc.meta <- multiclass.roc(as.numeric(testing$class), as.numeric(multi.pred))
+plot.meta <- plot.roc(roc.meta$response, roc.meta$predictor)
+```
+
+```{r, fig.align = 'center'}
+ggroc(plot.meta) +
+  ggtitle('Figure 6: ROC Curve for Meta Model on Testing Set') +
+  annotate('text', x = 0.25, y = 0.125,
+           label = paste('Meta Model AUC:',roc.meta$auc %>% str_sub(., start = 0, end = 5)))
+```
+
+The AUC is expectedly high.
+
+```{r, fig.align = 'center'}
+melted.multi <- melt(conf.multi$table/colSums(conf.multi$table))
+plot.multi <- ggplot(data.frame(melted.multi),
+                    aes(x=Prediction, y=Reference, fill=value)) + 
+  geom_tile() + 
+  scale_fill_gradient(low = "steelblue",high = "white", limits = c(0,1)) +
+  ggtitle("Figure 6: Heatmap for Meta Model Accuracy on Testing Data") + 
+  geom_text(aes(label=round(value,3))) +
+  theme(axis.title = element_blank())
+plot.multi
+```
+
+## Summary
+
+Both random forest and bagged trees models perform extremely well, though the random forest performed slightly better at 0.995% accuracy. The meta model performed slightly worse at 0.994% accuracy, though this is still extremely good. For a meta model approach, it may be more effective to select models which perform similarly well but use algorithms that are more disparate than what we have chosen. Overall, the data is very good for predicting the types of activities.
+
+## Notes
+
+This analysis was generated using OSX 10.13.6, RStudio v1.1.453 and the 
+following packages:
+
+* caret v=6.0-81
+* ggplot2 v3.1.0
+* kableExtra v1.0.1
+* knitr v1.22
+* mice v3.6.0
+* nnet v7.3-12
+* pROC v1.13.0
+* randomForest v4.6-14
+* reshape2 v1.4.3
+* tidyverse 1.2.1
