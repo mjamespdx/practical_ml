@@ -7,7 +7,13 @@ output:
       toc: true
 ---
 
-```{r setup, echo=F,warning=F,message=F}
+## 1. Overview
+
+The purpose of this report is to detail some prediction models and their efficacy for discerning movements based on data made available by Groupware@LES (http://groupware.les.inf.puc-rio.br/har). The activities are sitting, sitting, down, standing, standing up, and walking.  Data was divided into training and test sets, then some exploration was performed with respect to determining which predictors to use. Finally, three models were assembled and then combined for a final prediction model.
+
+## 2. Gathering, Cleaning, and Assembling the Data
+
+```{r setup,warning=F,message=F}
 library(caret)
 library(kableExtra)
 library(ggplot2)
@@ -20,12 +26,6 @@ library(tidyverse)
 set.seed(555)
 knitr::opts_chunk$set(echo = TRUE,fig.pos = 'H')
 ```
-
-## 1. Overview
-
-The purpose of this report is to detail some prediction models and their efficacy for discerning movements based on data made available by Groupware@LES (http://groupware.les.inf.puc-rio.br/har). The activities are sitting, sitting, down, standing, standing up, and walking.  Data was divided into training and test sets, then some exploration was performed with respect to determining which predictors to use. Finally, three models were assembled and then combined for a final prediction model.
-
-## 2. Gathering, Cleaning, and Assembling the Data
 
 ```{r load,cache=TRUE}
 download.file(url="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",

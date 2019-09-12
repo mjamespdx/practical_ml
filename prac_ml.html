@@ -217,6 +217,17 @@ $(document).ready(function () {
 </div>
 <div id="gathering-cleaning-and-assembling-the-data" class="section level2">
 <h2>2. Gathering, Cleaning, and Assembling the Data</h2>
+<pre class="r"><code>library(caret)
+library(kableExtra)
+library(ggplot2)
+library(magrittr)
+library(mice)
+library(nnet)
+library(randomForest)
+library(reshape2)
+library(tidyverse)
+set.seed(555)
+knitr::opts_chunk$set(echo = TRUE,fig.pos = 'H')</code></pre>
 <pre class="r"><code>download.file(url=&quot;https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv&quot;,
               method=&quot;curl&quot;,destfile=&quot;training.csv&quot;)
 training &lt;- read.csv(&quot;training.csv&quot;, na.strings = c(&quot;&quot;, &quot;NA&quot;)) %&gt;% as_tibble()
