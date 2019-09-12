@@ -14,7 +14,6 @@ library(ggplot2)
 library(magrittr)
 library(mice)
 library(nnet)
-library(pROC)
 library(randomForest)
 library(reshape2)
 library(tidyverse)
@@ -280,17 +279,16 @@ Both random forest and bagged trees models perform extremely well, though the ra
 
 ## 6. Notes
 
-This analysis was generated using OSX 10.13.6, RStudio v1.1.453 and the 
+This analysis was generated using OSX 10.14.5, RStudio v1.1.463 and the 
 following packages:
 
-* caret v=6.0-81
+* caret v6.0-81
 * ggplot2 v3.1.0
 * kableExtra v1.0.1
 * knitr v1.22
 * magrittr v1.5
 * mice v3.6.0
 * nnet v7.3-12
-* pROC v1.13.0
 * randomForest v4.6-14
 * reshape2 v1.4.3
 * scales v1.0.0
