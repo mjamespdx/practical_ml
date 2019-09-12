@@ -2,7 +2,7 @@
 
 This is a report detailing some machine learning methods for classifying activities and
 model evaluation. It was originally developed for the Johns Hopkins Data Science Specialization, 
-but I recreated it with methods that were a bit more rigorous. The full html can be viewed [here](https://htmlpreview.github.io/?).
+but I recreated it with methods that were a bit more rigorous. The full html can be viewed [here](https://htmlpreview.github.io/?https://github.com/msieviec/practical_ml/blob/master/prac_ml.html).
 
 # Files
 * prac\_ml.html - html report
