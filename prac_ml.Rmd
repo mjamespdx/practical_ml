@@ -255,7 +255,7 @@ meta.testing <- bind_cols(class = testing$class, RF = predict.rf, Bagged = predi
 multi <- multinom(class ~ ., data = meta.training)
 multi.pred <- predict(multi, meta.testing)
 conf.multi <- confusionMatrix(multi.pred, testing$class)
-paste('Meta model accuracy:',conf.multi$overall[2] %>% round(.,3)) %>% noquote()
+paste('Meta model Kappa:',conf.multi$overall[2] %>% round(.,3)) %>% noquote()
 ```
 
 We see the meta model Kappa is comparable to random forest on its own, suggesting no real benefit in using it.
