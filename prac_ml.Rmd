@@ -95,7 +95,11 @@ training <- training[forTraining,]
 ```
 
 We're going to compare a random forest model with a bagged tree model. The main difference between these two methods is that a random forest builds its decision trees on some subset of the variables, whereas a bagged trees model builds its using all of the variables, as illustrated in this image:
-![image](https://i.stack.imgur.com/sYR7y.png "Random Forest vs. Bagged Trees methodology")
+
+<figure>
+  <figcaption> Figure 1: Random Forest vs. Bagged Trees Methodology</figcaption>
+  <img src = "https://i.stack.imgur.com/sYR7y.png" alt = "Random Forest vs. Bagged Trees Methodology"/>
+</figure>
 
 We will grow 50 trees for each method. By default, the trees will only be `sqrt(ncol(data))` deep, in order to avoid overfitting.
 
