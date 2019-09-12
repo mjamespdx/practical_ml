@@ -1,7 +1,7 @@
 ---
-title: "Predicting Exercises With Fitness Device Data"
+title: "Predicting Activities With Fitness Device Data"
 author: "Michael Sieviec"
-date: "9/11/2019"
+date: "9/12/2019"
 output:
   html_document:
       toc: true
